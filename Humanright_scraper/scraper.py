@@ -1,14 +1,13 @@
 import re
 import time
+import datetime
+from dateutil.parser import parse
 from .parser import parse_page
 from .utils import get_soup
-from .utils import news_dateformat
-from .utils import user_dateformat
-from .utils import strf_to_datetime
 
 patterns = [
     re.compile('https://www.hrw.org/report/[\w]+'),
-    re.compile('https://www.hrw.org/news/[\w]+')]
+    re.compile('https://www.hrw.org/news[\w]+')]
 
 def is_matched(url):
     for pattern in patterns:
@@ -28,15 +27,14 @@ def yield_latest_report(begin_date, max_num=10, sleep=1.0):
         Maximum number of news to be scraped
     sleep : float
         Sleep time. Default 1.0 sec
-
     It yields
     ---------
     news : json object
     """
 
     # prepare parameters
-    d_begin = strf_to_datetime(begin_date, user_dateformat)
-    end_page = 72
+    d_begin = parse(begin_date)
+    end_page = 120
     n_news = 0
     outdate = False
 
@@ -57,20 +55,22 @@ def yield_latest_report(begin_date, max_num=10, sleep=1.0):
 
         # scrap
         for url in links_all:
-
             news_json = parse_page(url)
-            news_json['date'] = news_json['date'][:-15]
+            try:
+                # check date
+                d_news = news_json['time']
+                if d_begin > d_news:
+                    outdate = True
+                    print('Stop scrapping. {} / {} blog was scrapped'.format(n_news, max_num))
+                    print('The oldest article has been created after {}'.format(begin_date))
+                    break
 
-            # check date
-            d_news = strf_to_datetime(news_json['date'], user_dateformat)
-            if d_begin > d_news:
-                outdate = True
-                print('Stop scrapping. {} / {} report was scrapped'.format(n_news, max_num))
-                print('The oldest blog article has been created after {}'.format(begin_date))
-                break
-
-            # yield
-            yield news_json
+                # yield
+                yield news_json
+            except Exception as e:
+                print(e)
+                print('Parsing error from {}'.format(url))
+                return None
 
             # check number of scraped news
             n_news += 1
@@ -88,7 +88,6 @@ def get_report_urls(begin_page=0, end_page=3, verbose=True):
         Default is 3
     verbose : Boolean
         If True, print current status
-
     Returns
     -------
     links_all : list of str
@@ -118,15 +117,14 @@ def yield_latest_news(begin_date, max_num=10, sleep=1.0):
         Maximum number of news to be scraped
     sleep : float
         Sleep time. Default 1.0 sec
-
     It yields
     ---------
     news : json object
     """
 
     # prepare parameters
-    d_begin = strf_to_datetime(begin_date, user_dateformat)
-    end_page = 72
+    d_begin = parse(begin_date)
+    end_page = 200
     n_news = 0
     outdate = False
 
@@ -144,27 +142,25 @@ def yield_latest_news(begin_date, max_num=10, sleep=1.0):
             sub_links = soup.find_all('h3', class_= 'title')
             links = ['https://www.hrw.org' + i.find('a')['href'] for i in sub_links]
             links_all += links
-            links_all = [url for url in links_all if is_matched(url)]
         # scrap
-
         for url in links_all:
-
             news_json = parse_page(url)
-            news_json['date'] = news_json['date'][:-15]
 
-            # check date
-            d_news = strf_to_datetime(news_json['date'], user_dateformat)
-            
-            if d_begin > d_news:
-                outdate = True
-                print('Stop scrapping. {} / {} article was scrapped'.format(n_news, max_num))
-                print('The oldest article has been created after {}'.format(begin_date))
-                break
+            if news_json['date'] is not None:
+                # check date
+                d_news = news_json['date']
+                if d_begin > d_news:
+                    outdate = True
+                    print('Stop scrapping. {} / {} blog was scrapped'.format(n_news, max_num))
+                    print('The oldest testimony article has been created after {}'.format(begin_date))
+                    break
 
-            # yield
-            yield news_json
+                # yield
+                yield news_json
+            else:
+                continue
 
-            # check number of scraped news
+                # check number of scraped news
             n_news += 1
             if n_news >= max_num:
                 break
@@ -180,7 +176,6 @@ def get_news_urls(begin_page=0, end_page=3, verbose=True):
         Default is 3
     verbose : Boolean
         If True, print current status
-
     Returns
     -------
     links_all : list of str
@@ -188,12 +183,11 @@ def get_news_urls(begin_page=0, end_page=3, verbose=True):
     """
 
     links_all = []
-    for page in range(0, end_page+1):
+    for page in range(begin_page, end_page+1):
         url = url_news.format(page)
         soup = get_soup(url)
         sub_links = soup.find_all('h3', class_= 'title')
         links = ['https://www.hrw.org' + i.find('a')['href'] for i in sub_links]
         links_all += links
-        links_all = [url for url in links_all if is_matched(url)]
 
     return links_all
