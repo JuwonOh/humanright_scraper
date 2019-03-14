@@ -1,4 +1,4 @@
-# CSIS_scraper
+# humanright_scraper
 
 미국의 씽크탱크인 휴먼라이트 와치(Human Right Wathch, https://www.hrw.org)의 분석(report, blog post)들을 받아오기 위한 크롤러입니다.
 
